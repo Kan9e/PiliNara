@@ -165,6 +165,7 @@ abstract final class SettingBoxKey {
       enableSlideVolumeBrightness = 'enableSlideVolumeBrightness',
       enableScrollVolume = 'enableScrollVolume',
       enableSlideFS = 'enableSlideFS',
+      enablePlayerSwipeBack = 'enablePlayerSwipeBack',
       retryCount = 'retryCount',
       retryDelay = 'retryDelay',
       liveQuality = 'liveQuality',

@@ -3,6 +3,8 @@ import 'dart:io';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
+import 'package:PiliPlus/features/player_navigation/player_swipe_back.dart';
+
 import 'package:PiliPlus/common/assets.dart';
 import 'package:PiliPlus/common/constants.dart';
 import 'package:PiliPlus/common/style.dart';
@@ -158,6 +160,9 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
 
   GestureType? _gestureType;
   Offset? _initialFocalPoint;
+  Offset? _swipeBackOrigin;
+  PlayerSwipeBackState? _swipeBack;
+  bool _canSwipeBack = false;
 
   bool _pauseDueToPauseUponEnteringBackgroundMode = false;
 
@@ -1151,6 +1156,15 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
   }
 
   void _onPanStart(ScaleStartDetails details) {
+    _swipeBack?.cancel();
+    _swipeBack = null;
+    _swipeBackOrigin = details.focalPoint;
+    _canSwipeBack =
+        !isFullScreen &&
+        !widget.isPipMode &&
+        !showRestoreScaleBtn.value &&
+        details.kind == ui.PointerDeviceKind.touch &&
+        (PlayerSwipeBack.maybeOf(context)?.available ?? false);
     _isDesktopTouchPan = PlatformUtils.isDesktop &&
         details.kind == ui.PointerDeviceKind.touch;
     _pendingTouchFullScreenToggle = null;
@@ -1211,6 +1225,10 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
   }
 
   void _onPanUpdate(ScaleUpdateDetails details) {
+    if (_swipeBack case final swipe?) {
+      swipe.update(details.focalPoint.dy - _swipeBackOrigin!.dy);
+      return;
+    }
     if (_gestureType == null) {
       final cumulativeDelta = details.localFocalPoint - _initialFocalPoint!;
       if (cumulativeDelta.distanceSquared < 1) return;
@@ -1221,7 +1239,7 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
         _gestureType = .horizontal;
       } else if (dy > 3 * dx) {
         if (!plPlayerController.enableSlideVolumeBrightness &&
-            !plPlayerController.enableSlideFS) {
+            !plPlayerController.enableSlideFS && !_canSwipeBack) {
           return;
         }
 
@@ -1238,7 +1256,7 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
             _gestureType = .left;
           }
         } else if (tapPosition < sectionWidth * 2) {
-          if (!plPlayerController.enableSlideFS) {
+          if (!plPlayerController.enableSlideFS && !_canSwipeBack) {
             return;
           }
           // 全屏
@@ -1305,6 +1323,16 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
           .clamp(0.0, 1.0);
       setBrightness(brightness);
     } else if (_gestureType == .center) {
+      final distance = details.focalPoint.dy - _swipeBackOrigin!.dy;
+      if (_canSwipeBack && distance > 0) {
+        final swipe = PlayerSwipeBack.maybeOf(context);
+        if (swipe?.begin() ?? false) {
+          _swipeBack = swipe;
+          swipe!.update(distance);
+        }
+        return;
+      }
+      if (!plPlayerController.enableSlideFS) return;
       // 全屏
       const double threshold = 2.5; // 滑动阈值
       double cumulativeDy = details.localFocalPoint.dy - _initialFocalPoint!.dy;
@@ -1365,6 +1393,15 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
   }
 
   void _onPanEnd(ScaleEndDetails details) {
+    if (_swipeBack case final swipe?) {
+      _swipeBack = null;
+      if (details.pointerCount == 0) {
+        unawaited(swipe.end(details.velocity.pixelsPerSecond.dy));
+      } else {
+        swipe.cancel();
+      }
+    }
+    _canSwipeBack = false;
     if (details.pointerCount != 0) {
       _pendingTouchFullScreenToggle = null;
     }
@@ -1490,6 +1527,12 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
   ({int pointer, bool target, bool wasFullScreen})? _pendingTouchFullScreenToggle;
 
   void _onPointerDown(PointerDownEvent event) {
+    // A second finger hands control back to pinch/rotate, never navigation.
+    if (_swipeBack != null) {
+      _swipeBack?.cancel();
+      _swipeBack = null;
+      _canSwipeBack = false;
+    }
     if (PlatformUtils.isDesktop && event.kind == ui.PointerDeviceKind.touch) {
       _pendingTouchFullScreenToggle = null;
       _activeTouchPointers.add(event.pointer);
@@ -1559,6 +1602,9 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
   }
 
   void _onPointerCancel(PointerCancelEvent event) {
+    _swipeBack?.cancel();
+    _swipeBack = null;
+    _canSwipeBack = false;
     _activeTouchPointers.remove(event.pointer);
     _pendingTouchFullScreenToggle = null;
     _pendingFullScreenToggle = null;

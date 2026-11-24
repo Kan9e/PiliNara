@@ -168,6 +168,14 @@ List<SettingsModel> get playSettings => [
     setKey: SettingBoxKey.enableSlideFS,
     defaultVal: true,
   ),
+  if (Platform.isIOS)
+    const SwitchModel(
+      title: '播放器下滑返回',
+      subtitle: '在非全屏播放器中间下滑，松手返回上一页；短距离下滑回弹。全屏时仍先退出全屏',
+      leading: Icon(Icons.swipe_down_alt),
+      setKey: SettingBoxKey.enablePlayerSwipeBack,
+      defaultVal: false,
+    ),
   const SwitchModel(
     title: '提前初始化播放器',
     subtitle: '相对减少手动播放加载时间',

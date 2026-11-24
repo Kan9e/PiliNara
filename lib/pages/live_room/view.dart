@@ -2,6 +2,8 @@ import 'dart:io';
 import 'dart:math';
 import 'dart:ui';
 
+import 'package:PiliPlus/features/player_navigation/player_swipe_back.dart';
+
 import 'package:PiliPlus/common/assets.dart';
 import 'package:PiliPlus/common/style.dart';
 import 'package:PiliPlus/common/widgets/button/icon_button.dart';
@@ -457,11 +459,17 @@ class _LiveRoomPageState extends State<LiveRoomPage>
       );
     }
     // 页面根参照系：归位目标矩形以此量取
-    return KeyedSubtree(
-      key: _pageRootKey,
-      child: Theme(
-        data: ThemeUtils.darkTheme,
-        child: child,
+    return PlayerSwipeBack(
+      enabled: () =>
+          Platform.isIOS &&
+          Pref.enablePlayerSwipeBack &&
+          _canPopPage &&
+          !_pipRestoreInFlight &&
+          !_isEnteringPipMode &&
+          !plPlayerController.controlsLock.value,
+      child: KeyedSubtree(
+        key: _pageRootKey,
+        child: Theme(data: ThemeUtils.darkTheme, child: child),
       ),
     );
   }

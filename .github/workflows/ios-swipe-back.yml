@@ -1,0 +1,22 @@
+name: IPA - Swipe Back
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [feat/ios-swipe-back]
+    paths:
+      - 'lib/**'
+      - 'ios/**'
+      - 'pubspec.*'
+      - '.github/workflows/ios*.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ipa-swipe-back-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ios:
+    uses: ./.github/workflows/ios.yml

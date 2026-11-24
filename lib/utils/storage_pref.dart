@@ -954,6 +954,9 @@ abstract final class Pref {
   static bool get enableSlideFS =>
       _setting.get(SettingBoxKey.enableSlideFS, defaultValue: true);
 
+  static bool get enablePlayerSwipeBack =>
+      _setting.get(SettingBoxKey.enablePlayerSwipeBack, defaultValue: false);
+
   static int get retryCount =>
       _setting.get(SettingBoxKey.retryCount, defaultValue: 2);
 

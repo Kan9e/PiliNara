@@ -1,6 +1,8 @@
 import 'dart:io' show Platform;
 import 'dart:math';
 
+import 'package:PiliPlus/features/player_navigation/player_swipe_back.dart';
+
 import 'package:PiliPlus/common/assets.dart';
 import 'package:PiliPlus/common/style.dart';
 import 'package:PiliPlus/common/widgets/custom_icon.dart';
@@ -2057,7 +2059,16 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
         ? Theme(data: theme, child: child)
         : child;
     // 页面根参照系：归位目标矩形以此量取（规避路由转场期间的整页偏移）
-    return KeyedSubtree(key: _pageRootKey, child: page);
+    return PlayerSwipeBack(
+      enabled: () =>
+          Platform.isIOS &&
+          Pref.enablePlayerSwipeBack &&
+          _canPopPage &&
+          !_pipRestoreInFlight &&
+          !_isEnteringPipMode &&
+          !videoDetailController.plPlayerController.controlsLock.value,
+      child: KeyedSubtree(key: _pageRootKey, child: page),
+    );
   }
 
   /// 包住 tab 内容区：方向键滚动当前激活 tab 的内容。
