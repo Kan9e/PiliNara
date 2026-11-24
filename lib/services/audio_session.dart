@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:PiliPlus/features/pip_diagnostics/pip_diagnostics.dart';
 import 'package:PiliPlus/plugin/pl_player/controller.dart';
 import 'package:PiliPlus/services/service_locator.dart';
 import 'package:PiliPlus/utils/storage_pref.dart';
@@ -16,6 +17,8 @@ class AudioSessionHandler {
 
   Future<bool> setActive(bool active) async {
     await _ready;
+    // 诊断埋点：iOS 上音频会话被去激活会让播放器静音并看似暂停
+    pipDiag('audioSession', 'setActive($active) stack=${pipDiagStack(6)}');
     return _session.setActive(active);
   }
 
@@ -49,6 +52,7 @@ class AudioSessionHandler {
     await _configureSession();
     _session.interruptionEventStream.listen(_onInterrupted);
     _session.becomingNoisyEventStream.listen((_) {
+      pipDiag('audioSession', 'becomingNoisy -> pause');
       _resume = null;
       final onPause = videoPlayerServiceHandler?.onPause;
       if (onPause != null) {
@@ -60,6 +64,10 @@ class AudioSessionHandler {
   }
 
   void _onInterrupted(AudioInterruptionEvent event) {
+    pipDiag(
+      'audioSession',
+      'interruption type=${event.type.name} begin=${event.begin}',
+    );
     final handler = videoPlayerServiceHandler;
     final player = PlPlayerController.instance;
     if (event.type == AudioInterruptionType.duck) {

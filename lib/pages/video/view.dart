@@ -1,6 +1,7 @@
 import 'dart:io' show Platform;
 import 'dart:math';
 
+import 'package:PiliPlus/features/pip_diagnostics/pip_diagnostics.dart';
 import 'package:PiliPlus/features/player_navigation/player_swipe_back.dart';
 
 import 'package:PiliPlus/common/assets.dart';
@@ -827,6 +828,7 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
     // 如果 _pipRetryPending=true 但用户没有继续 pop（_onPopInvokedWithResult 未触发），
     // 说明用户通过其他方式离开（点导航栏、Get.offAll 等），需要主动暂停播放器。
     if (_pipRetryPending && !isInAppPip && !_isEnteringPipMode) {
+      pipDiag('page', 'dispose pause via pipRetryPending');
       plPlayerController?.pause();
       _pipRetryPending = false;
     }
@@ -903,6 +905,11 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
     // 确定是否需要释放/暂停资源
     final bool shouldKeepAlive =
         _isEnteringPipMode || PipOverlayService.isInPipMode || willStartPip;
+    pipDiag(
+      'page',
+      'didPushNext willStartPip=$willStartPip keepAlive=$shouldKeepAlive '
+      'status=${playerStatusBeforePush?.name}',
+    );
 
     introController.cancelTimer();
 
@@ -948,6 +955,7 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
   // 返回当前页面时
   void didPopNext() async {
     super.didPopNext();
+    pipDiag('page', 'didPopNext');
 
     // 收回 controller 级 GlobalKey 的挂载权：上层（可能复用同一 controller 的）
     // 视频页正在离开，本页随后的 setState 会重新挂 key 把 element 接回来。
@@ -2855,6 +2863,11 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
   }
 
   void _onPopInvokedWithResult(bool didPop, result) {
+    pipDiag(
+      'page',
+      '_onPopInvokedWithResult didPop=$didPop '
+      'entering=$_isEnteringPipMode retry=$_pipRetryPending',
+    );
     final returningToVideoPage = _isReturningToVideoPageInStack();
     if (didPop && Platform.isAndroid) {
       // 参考上游逻辑：返回时立即强制清空 Auto-PiP 状态，切断系统自动进入的时机，防止误触
@@ -3010,6 +3023,7 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
     if (!_shouldStartInAppPip(fromPop: fromPop, manual: manual)) {
       return;
     }
+    pipDiag('page', 'startInAppPip fromPop=$fromPop manual=$manual');
 
     // 设置标志，防止 didPushNext 清理 SponsorBlock 数据
     _isEnteringPipMode = true;

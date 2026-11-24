@@ -4,6 +4,7 @@ import 'dart:math' show max, min;
 
 import 'package:PiliPlus/common/widgets/pip_control_button.dart';
 import 'package:PiliPlus/common/widgets/pip_mini_video_content.dart';
+import 'package:PiliPlus/features/pip_diagnostics/pip_diagnostics.dart';
 import 'package:PiliPlus/pages/live_room/controller.dart';
 import 'package:PiliPlus/plugin/pl_player/controller.dart';
 import 'package:PiliPlus/plugin/pl_player/models/play_status.dart';
@@ -149,6 +150,11 @@ class LivePipOverlayService {
       try {
         final overlayContext = Get.overlayContext ?? context;
         Overlay.of(overlayContext).insert(_overlayEntry!);
+        pipDiag(
+          'livePip',
+          'overlay inserted status=${plPlayerController.playerStatus.name}',
+        );
+        PipDiagSampler.start(plPlayerController.videoPlayerController);
 
         // 允许应用内小窗继续使用 Auto-PiP 手势
         WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -178,6 +184,12 @@ class LivePipOverlayService {
   }
 
   static void stopLivePip({bool callOnClose = true, bool immediate = false}) {
+    pipDiag(
+      'livePip',
+      'stopLivePip callOnClose=$callOnClose immediate=$immediate '
+      'inPip=$_isInPipMode',
+    );
+    PipDiagSampler.stop();
     if (!_isInPipMode && _overlayEntry == null) {
       return;
     }

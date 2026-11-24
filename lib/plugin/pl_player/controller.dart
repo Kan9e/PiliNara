@@ -5,6 +5,7 @@ import 'dart:math' show max, min;
 import 'dart:ui' as ui;
 
 import 'package:PiliPlus/common/assets.dart';
+import 'package:PiliPlus/features/pip_diagnostics/pip_diagnostics.dart';
 import 'package:PiliPlus/http/browser_ua.dart';
 import 'package:PiliPlus/http/constants.dart';
 import 'package:PiliPlus/http/loading_state.dart';
@@ -1602,6 +1603,7 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
 
   /// 底层播放：申请音频焦点 + 启动播放，不含 UI 副作用
   Future<void> _rawPlay() async {
+    pipDiag('play', 'rawPlay status=${playerStatus.name}');
     await _videoPlayerController?.play();
     audioSessionHandler?.setActive(true);
     playerStatus = PlayerStatus.playing;
@@ -1609,6 +1611,7 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
 
   /// 播放视频
   Future<void> play({bool repeat = false, bool hideControls = true}) async {
+    pipDiag('play', 'play repeat=$repeat count=$_playerCount');
     if (_playerCount == 0) return;
     // 播放时自动隐藏控制条
     final showControlsOnNextPlay = _consumeShowControlsOnNextPlay();
@@ -1627,6 +1630,12 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
 
   /// 暂停播放
   Future<void> pause({bool notify = true, bool isInterrupt = false}) async {
+    // 诊断埋点：定位 iOS 退出到小窗后自动暂停时，究竟由哪条路径触发
+    pipDiag(
+      'pause',
+      'isInterrupt=$isInterrupt notify=$notify status=${playerStatus.name} '
+      'count=$_playerCount stack=${pipDiagStack()}',
+    );
     await _videoPlayerController?.pause();
     playerStatus = .paused;
 
@@ -2627,6 +2636,7 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
   }
 
   void dispose() {
+    pipDiag('dispose', 'count=$_playerCount status=${playerStatus.name}');
     _cancelAutoAudioOnlyTimer();
     _interruptAutoAudioRestore();
     _autoAudioState = AutoAudioOnlyState.idle;

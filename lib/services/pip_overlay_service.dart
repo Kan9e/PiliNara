@@ -3,6 +3,7 @@ import 'dart:io' show Platform;
 import 'dart:math' show max, min;
 
 import 'package:PiliPlus/common/widgets/pip_control_button.dart';
+import 'package:PiliPlus/features/pip_diagnostics/pip_diagnostics.dart';
 import 'package:PiliPlus/pages/video/controller.dart';
 import 'package:PiliPlus/plugin/pl_player/controller.dart';
 import 'package:PiliPlus/plugin/pl_player/models/play_status.dart';
@@ -182,6 +183,11 @@ class PipOverlayService {
     required PlPlayerController? player,
     required bool disposePlayer,
   }) {
+    pipDiag(
+      'pip',
+      'releaseSavedVideoOwner dispose=$disposePlayer '
+      'status=${player?.playerStatus.name}',
+    );
     controller
       ..isEnteringPip = false
       ..cancelBlockListener();
@@ -264,6 +270,11 @@ class PipOverlayService {
     }
 
     isInPipMode = true;
+    pipDiag(
+      'pip',
+      'startPip status=${plPlayerController.playerStatus.name} '
+      'sourceRect=${sourceRect != null}',
+    );
     // 收起动画:从页面播放器矩形缩至小窗;sourceRect 为空(量取失败的
     // 兜底路径)时直接以活跃态出现
     transition.beginEnter(sourceRect: sourceRect);
@@ -303,6 +314,11 @@ class PipOverlayService {
       try {
         final overlayContext = Get.overlayContext ?? context;
         Overlay.of(overlayContext).insert(_overlayEntry!);
+        pipDiag(
+          'pip',
+          'overlay inserted status=${plPlayerController.playerStatus.name}',
+        );
+        PipDiagSampler.start(plPlayerController.videoPlayerController);
 
         // 允许应用内小窗继续使用 Auto-PiP 手势
         WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -338,6 +354,12 @@ class PipOverlayService {
     bool releaseSavedOwner = false,
     bool disposeSavedOwnerPlayer = true,
   }) {
+    pipDiag(
+      'pip',
+      'stopPip callOnClose=$callOnClose immediate=$immediate '
+      'releaseSavedOwner=$releaseSavedOwner inPip=$isInPipMode',
+    );
+    PipDiagSampler.stop();
     if (!isInPipMode && _overlayEntry == null) {
       return;
     }
