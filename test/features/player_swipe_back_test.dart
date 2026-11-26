@@ -16,6 +16,7 @@ void main() {
     bool canPop = true,
     Widget? child,
     bool nested = false,
+    Rect? preview,
   }) async {
     final nav = GlobalKey<NavigatorState>();
     final swipe = GlobalKey<PlayerSwipeBackState>();
@@ -37,6 +38,8 @@ void main() {
       builder: (_) => PlayerSwipeBack(
         key: swipe,
         enabled: () => enabled,
+        previewBounds: () => preview,
+        miniBounds: (_) => const Rect.fromLTWH(580, 380, 200, 112),
         child: PopScope(
           canPop: canPop,
           child: child ?? const Scaffold(body: Text('player')),
@@ -81,9 +84,13 @@ void main() {
     },
   );
 
-  testWidgets('release keeps the mounted player until the route is disposed', (tester) async {
+  testWidgets('release keeps the mounted player until the route is disposed', (
+    tester,
+  ) async {
     var mounts = 0;
-    final harness = await openPlayer(tester,
+    final harness = await openPlayer(
+      tester,
+      preview: const Rect.fromLTWH(0, 0, 320, 180),
       child: _MountCounter(onMount: () => mounts++),
     );
     final swipe = harness.swipe.currentState!;
@@ -98,13 +105,53 @@ void main() {
     expect(mounts, 1);
   });
 
+  testWidgets(
+    'crop follows the player on a wide layout and hides the outgoing copy on handoff',
+    (tester) async {
+      const bounds = Rect.fromLTWH(0, 20, 500, 282);
+      final harness = await openPlayer(tester, preview: bounds);
+      final swipe = harness.swipe.currentState!;
+      expect(swipe.begin(), isTrue);
+      swipe.update(140);
+      await tester.pump();
+      final page = find.byKey(harness.swipe);
+      final clip = tester
+          .widgetList<ClipRect>(
+            find.descendant(of: page, matching: find.byType(ClipRect)),
+          )
+          .first;
+      expect(clip.clipper!.getClip(const Size(800, 600)), bounds);
+      final box = tester.renderObject(find.byType(Scaffold).last) as RenderBox;
+      expect(box.localToGlobal(bounds.topLeft).dy, closeTo(160, 0.01));
+      expect(
+        box.localToGlobal(bounds.topRight).dx -
+            box.localToGlobal(bounds.topLeft).dx,
+        lessThan(bounds.width),
+      );
+      await swipe.end(0);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 16));
+      expect(
+        tester
+            .widget<Opacity>(
+              find.descendant(of: page, matching: find.byType(Opacity)).first,
+            )
+            .opacity,
+        0,
+      );
+      await tester.pumpAndSettle();
+    },
+  );
+
   testWidgets('long drag pops only the top route', (tester) async {
     final harness = await openPlayer(tester, nested: true);
     final swipe = harness.swipe.currentState!;
     expect(swipe.begin(), isTrue);
     swipe.update(160);
     await tester.pump();
-    await swipe.end(0);
+    final release = swipe.end(0);
+    await tester.pumpAndSettle();
+    await release;
     await tester.pumpAndSettle();
     expect(find.text('search'), findsOneWidget);
     expect(find.text('player'), findsNothing);
@@ -118,7 +165,9 @@ void main() {
     var swipe = harness.swipe.currentState!;
     expect(swipe.begin(), isTrue);
     swipe.update(30);
-    await swipe.end(900);
+    final release = swipe.end(900);
+    await tester.pumpAndSettle();
+    await release;
     await tester.pumpAndSettle();
     expect(find.text('home'), findsOneWidget);
 
@@ -169,6 +218,7 @@ class _MountCounterState extends State<_MountCounter> {
     super.initState();
     widget.onMount();
   }
+
   @override
   Widget build(BuildContext context) => const Scaffold(body: Text('player'));
 }

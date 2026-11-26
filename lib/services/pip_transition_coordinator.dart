@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'dart:math' show min;
+import 'dart:math' show max, min;
 
 import 'package:flutter/animation.dart' show Curve, Curves;
 import 'package:flutter/foundation.dart';
@@ -36,6 +36,17 @@ class PipWindowMemory {
   }
 
   static double basePipShort(Size screen) => basePipLong(screen) * 112 / 200;
+
+  static Rect initialRect(Size screen, {required bool isVertical}) {
+    final scale = clampScaleContinuous(PipWindowMemory.scale, screen, isVertical: isVertical);
+    final long = basePipLong(screen) * scale;
+    final short = basePipShort(screen) * scale;
+    final size = isVertical ? Size(short, long) : Size(long, short);
+    final x = screen.width - size.width;
+    final y = screen.height - size.height;
+    return Offset((position?.dx ?? x - 16).clamp(0.0, max(0.0, x)),
+        (position?.dy ?? y - 100).clamp(0.0, max(0.0, y))) & size;
+  }
 
   /// 连续缩放(捏合/滚轮)与双击档位共用的合法区间:下限保证长边 ≥140dp
   /// (控件可点)。上限按视频方向分流:

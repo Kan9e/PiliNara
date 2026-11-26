@@ -160,6 +160,19 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
 
   GestureType? _gestureType;
   Offset? _initialFocalPoint;
+  static final _iosVolumeChanges = const EventChannel('pilinara/player/outputVolume')
+      .receiveBroadcastStream().cast<double>();
+  StreamSubscription<double>? _iosVolumeSubscription;
+
+  void _listenToVolume(ValueChanged<double> listener) {
+    if (Platform.isIOS) {
+      _iosVolumeSubscription = _iosVolumeChanges.listen(listener);
+    } else {
+      FlutterVolumeController.addListener(listener,
+        category: AudioSessionCategory.playback, emitOnStart: false);
+    }
+  }
+
   Offset? _swipeBackOrigin;
   PlayerSwipeBackState? _swipeBack;
   bool _canSwipeBack = false;
@@ -309,6 +322,7 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
 
     if (PlatformUtils.isMobile) {
       Future.microtask(() async {
+        if (!mounted) return;
         try {
           if (Pref.enableAppVolume) {
             // 应用内音量模式：显示系统原生 HUD，不显示应用内指示器
@@ -316,24 +330,19 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
             // 只保存系统音量，不改变播放器音量和显示指示器
             plPlayerController.systemVolume.value =
                 (await FlutterVolumeController.getVolume())!;
-            FlutterVolumeController.addListener(
+            if (!mounted) return;
+            _listenToVolume(
               (double value) {
                 if (mounted && !plPlayerController.volumeInterceptEventStream) {
                   // 只更新系统音量记录，不影响播放器音量和指示器显示
                   plPlayerController.systemVolume.value = value;
                 }
               },
-              category: AudioSessionCategory.playback,
-              emitOnStart: false,
             );
           } else {
             FlutterVolumeController.updateShowSystemUI(true);
             _getCurrVolume();
-            FlutterVolumeController.addListener(
-              _onVolumeChanged,
-              category: AudioSessionCategory.playback,
-              emitOnStart: false,
-            );
+            _listenToVolume(_onVolumeChanged);
           }
         } catch (_) {}
 
@@ -453,7 +462,9 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
       ..removeListener(_onTransformChanged)
       ..dispose();
     _removeDmAction();
-    if (PlatformUtils.isMobile) {
+    if (Platform.isIOS) {
+      _iosVolumeSubscription?.cancel();
+    } else if (PlatformUtils.isMobile) {
       FlutterVolumeController.removeListener();
     }
     super.dispose();

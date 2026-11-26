@@ -244,7 +244,8 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
       }
       return null;
     }
-    return renderObject.localToGlobal(Offset.zero) & renderObject.size;
+    return Rect.fromPoints(renderObject.localToGlobal(Offset.zero),
+        renderObject.localToGlobal(renderObject.size.bottomRight(Offset.zero)));
   }
 
   /// C1/C2 共用:页面就绪后量取归位目标矩形并上报协调器。
@@ -2068,6 +2069,11 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
         : child;
     // 页面根参照系：归位目标矩形以此量取（规避路由转场期间的整页偏移）
     return PlayerSwipeBack(
+      miniBounds: (size) => PipWindowMemory.initialRect(
+        size, isVertical: videoDetailController.isVertical.value,
+      ),
+      previewBounds: () => _shouldStartInAppPip(fromPop: true)
+          ? _playerRect(relativeToPage: true) : null,
       enabled: () =>
           Platform.isIOS &&
           Pref.enablePlayerSwipeBack &&

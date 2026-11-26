@@ -584,12 +584,13 @@ class _LivePipWidgetState extends State<LivePipWidget>
       PipWindowMemory.scale = _scale;
 
       // 恢复上次摆放位置（会话级记忆）；越界（旋转/窗口尺寸变化）时钳回屏内
-      _left ??= (PipWindowMemory.position?.dx ?? screenSize.width - _width - 16)
-          .clamp(0.0, max(0.0, screenSize.width - _width))
-          .toDouble();
-      _top ??= (PipWindowMemory.position?.dy ?? screenSize.height - _height - 100)
-          .clamp(0.0, max(0.0, screenSize.height - _height))
-          .toDouble();
+      if (_left == null || _top == null) {
+        final rect = PipWindowMemory.initialRect(
+          screenSize, isVertical: LivePipOverlayService.isVertical,
+        );
+        _left ??= rect.left;
+        _top ??= rect.top;
+      }
 
       return AnimatedBuilder(
         animation: Listenable.merge([_phaseCtr, _closeCtr, _transition]),

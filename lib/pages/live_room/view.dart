@@ -154,7 +154,8 @@ class _LiveRoomPageState extends State<LiveRoomPage>
       }
       return null;
     }
-    return renderObject.localToGlobal(Offset.zero) & renderObject.size;
+    return Rect.fromPoints(renderObject.localToGlobal(Offset.zero),
+        renderObject.localToGlobal(renderObject.size.bottomRight(Offset.zero)));
   }
 
   /// C1/C2 共用：页面就绪后量取归位目标矩形并上报协调器（最多重试 10 帧）
@@ -460,6 +461,11 @@ class _LiveRoomPageState extends State<LiveRoomPage>
     }
     // 页面根参照系：归位目标矩形以此量取
     return PlayerSwipeBack(
+      miniBounds: (size) => PipWindowMemory.initialRect(
+        size, isVertical: plPlayerController.isVertical,
+      ),
+      previewBounds: () => _shouldStartLivePip()
+          ? _livePlayerRect(relativeToPage: true) : null,
       enabled: () =>
           Platform.isIOS &&
           Pref.enablePlayerSwipeBack &&

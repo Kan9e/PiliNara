@@ -784,12 +784,13 @@ class _PipWidgetState extends State<PipWidget>
         isVertical: PipOverlayService.isVertical,
       );
       PipWindowMemory.scale = _scale;
-      _left ??= (PipWindowMemory.position?.dx ?? screenSize.width - _width - 16)
-          .clamp(0.0, max(0.0, screenSize.width - _width))
-          .toDouble();
-      _top ??= (PipWindowMemory.position?.dy ?? screenSize.height - _height - 100)
-          .clamp(0.0, max(0.0, screenSize.height - _height))
-          .toDouble();
+      if (_left == null || _top == null) {
+        final rect = PipWindowMemory.initialRect(
+          screenSize, isVertical: PipOverlayService.isVertical,
+        );
+        _left ??= rect.left;
+        _top ??= rect.top;
+      }
 
       return AnimatedBuilder(
         animation: Listenable.merge([_phaseCtr, _closeCtr, _transition]),
