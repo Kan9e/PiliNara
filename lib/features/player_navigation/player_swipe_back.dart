@@ -32,6 +32,15 @@ class PlayerSwipeBackState extends State<PlayerSwipeBack>
   );
   ModalRoute<dynamic>? _route;
   OverlayEntry? _revealedEntry;
+  OverlayEntry? _scrim;
+  double _travel = 1;
+  // At this fraction of the path, only the player is left on screen.
+  static const _cropEnd = 0.24;
+
+  double get _progress => Curves.easeOutCubic.transform(
+    (_offset.value / _travel).clamp(0.0, 1.0),
+  );
+
   Rect? _playerBounds;
   Rect? _miniBounds;
   bool _hidePage = false;
@@ -57,13 +66,39 @@ class PlayerSwipeBackState extends State<PlayerSwipeBack>
     }
     _route = route;
     _playerBounds = widget.previewBounds?.call();
-    _miniBounds = widget.miniBounds?.call(MediaQuery.sizeOf(context));
+    final size = MediaQuery.sizeOf(context);
+    _miniBounds = widget.miniBounds?.call(size);
     _dragging = true;
     // Reveal the existing route underneath, without popping or rebuilding a
     // screenshot of it. No global navigation or transition settings change.
     if (route.overlayEntries.isNotEmpty) {
       _revealedEntry = route.overlayEntries.first;
       _wasOpaque = _revealedEntry!.opaque;
+      if (_playerBounds case final player?) {
+        _travel = ((_miniBounds?.top ?? size.height) - player.top).clamp(
+          size.height * 0.35,
+          size.height,
+        );
+        // Keep the shade fixed to the underlying page. On release the route
+        // animation fades the remaining shade while PiP finishes moving.
+        final exit = route.animation!;
+        _scrim = OverlayEntry(
+          builder: (_) => Positioned.fill(
+            child: IgnorePointer(
+              child: AnimatedBuilder(
+                animation: Listenable.merge([_offset, exit]),
+                builder: (_, _) => ColoredBox(
+                  key: const ValueKey('player-swipe-scrim'),
+                  color: const Color(0xFF000000).withValues(
+                    alpha: 0.48 * (1 - _progress) * exit.value,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+        navigator.overlay!.insert(_scrim!, below: _revealedEntry);
+      }
       _revealedEntry!.opaque = false;
     }
     _gestureNavigator = navigator..didStartUserGesture();
@@ -101,16 +136,29 @@ class PlayerSwipeBackState extends State<PlayerSwipeBack>
     _committed = true;
     final canHandOff =
         _playerBounds != null && widget.previewBounds?.call() != null;
-    if (!canHandOff && !MediaQuery.disableAnimationsOf(context)) {
-      // Without a mini player, finish the vertical movement before popping.
+    final remaining = canHandOff
+        ? _travel * _cropEnd - _offset.value
+        : MediaQuery.sizeOf(context).height - _offset.value;
+    if (remaining > 0 && !MediaQuery.disableAnimationsOf(context)) {
+      // A quick flick can end with the details still visible. Finish cropping
+      // them before handing the measured player bounds to the mini player.
+      final duration = canHandOff
+          ? Duration(
+              milliseconds: (remaining / velocity.clamp(1000.0, 3000.0) * 1000)
+                  .round()
+                  .clamp(16, 100),
+            )
+          : const Duration(milliseconds: 170);
       try {
         await _offset
             .animateTo(
-              MediaQuery.sizeOf(context).height,
-              duration: const Duration(milliseconds: 170),
+              _offset.value + remaining,
+              duration: duration,
               curve: Curves.easeOutCubic,
             )
             .orCancel;
+        // PopScope reads the current RenderBox. Paint the final transform first.
+        await WidgetsBinding.instance.endOfFrame;
       } on TickerCanceled {
         return;
       }
@@ -154,6 +202,10 @@ class PlayerSwipeBackState extends State<PlayerSwipeBack>
   }
 
   void _restoreOpacity() {
+    _scrim
+      ?..remove()
+      ..dispose();
+    _scrim = null;
     if (_route?.isActive == true &&
         _route?.animation?.status == AnimationStatus.completed) {
       _revealedEntry?.opaque = _wasOpaque;
@@ -190,11 +242,7 @@ class PlayerSwipeBackState extends State<PlayerSwipeBack>
           // Keep the live player mounted. Crop away the recommendations and
           // details as the finger pulls the picture out of its page.
           final target = _miniBounds;
-          final travel = ((target?.top ?? size.height) - player.top).clamp(
-            size.height * 0.35,
-            size.height,
-          );
-          final progress = (dy / travel).clamp(0.0, 1.0);
+          final progress = _progress;
           final endScale =
               ((target?.width ?? player.width * 0.45) / player.width).clamp(
                 0.0,
@@ -215,7 +263,8 @@ class PlayerSwipeBackState extends State<PlayerSwipeBack>
               1,
             )
             ..scaleByDouble(scale, scale, 1, 1);
-          final reveal = Curves.easeOut.transform((dy / 64).clamp(0.0, 1.0));
+          final reveal = (progress / Curves.easeOutCubic.transform(_cropEnd))
+              .clamp(0.0, 1.0);
           clip = Rect.lerp(Offset.zero & size, player, reveal);
         } else {
           transform.translateByDouble(0, dy, 0, 1);

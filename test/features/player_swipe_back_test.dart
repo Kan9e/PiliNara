@@ -17,6 +17,7 @@ void main() {
     Widget? child,
     bool nested = false,
     Rect? preview,
+    Rect mini = const Rect.fromLTWH(580, 380, 200, 112),
   }) async {
     final nav = GlobalKey<NavigatorState>();
     final swipe = GlobalKey<PlayerSwipeBackState>();
@@ -39,7 +40,7 @@ void main() {
         key: swipe,
         enabled: () => enabled,
         previewBounds: () => preview,
-        miniBounds: (_) => const Rect.fromLTWH(580, 380, 200, 112),
+        miniBounds: (_) => mini,
         child: PopScope(
           canPop: canPop,
           child: child ?? const Scaffold(body: Text('player')),
@@ -140,6 +141,89 @@ void main() {
         0,
       );
       await tester.pumpAndSettle();
+    },
+  );
+
+  testWidgets(
+    'wide page shrinks early against a dim feed and retraces a cancelled pull',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1194, 834);
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      const player = Rect.fromLTWH(0, 24, 800, 450);
+      final harness = await openPlayer(
+        tester,
+        preview: player,
+        mini: const Rect.fromLTWH(918, 588, 260, 146),
+      );
+      final swipe = harness.swipe.currentState!;
+      final page = find.byKey(harness.swipe);
+      final shade = find.byKey(const ValueKey('player-swipe-scrim'));
+      double width() {
+        final box = tester.renderObject(
+          find.descendant(of: page, matching: find.byType(Scaffold)),
+        ) as RenderBox;
+        return (box.localToGlobal(player.topRight) -
+                box.localToGlobal(player.topLeft))
+            .dx;
+      }
+
+      Rect clip() => tester
+          .widget<ClipRect>(
+            find.descendant(of: page, matching: find.byType(ClipRect)).first,
+          )
+          .clipper!
+          .getClip(const Size(1194, 834));
+      double shadeAlpha() => tester.widget<ColoredBox>(shade).color.a;
+      expect(swipe.begin(), isTrue);
+      swipe.update(36);
+      await tester.pump();
+      final startWidth = width();
+      final startClip = clip();
+      final startShade = shadeAlpha();
+      expect(startWidth, lessThan(player.width * 0.9));
+      expect(startClip.right, greaterThan(player.right));
+      expect(startShade, greaterThan(0.30));
+      swipe.update(64);
+      await tester.pump();
+      expect(width(), lessThan(startWidth));
+      expect(clip().right, inExclusiveRange(player.right, startClip.right));
+      expect(shadeAlpha(), inExclusiveRange(0.1, startShade));
+      await swipe.end(0);
+      await tester.pumpAndSettle();
+      expect(shade, findsNothing);
+      expect(width(), closeTo(player.width, 0.01));
+      expect(clip(), Offset.zero & const Size(1194, 834));
+      expect(harness.route.isCurrent, isTrue);
+    },
+  );
+
+  testWidgets(
+    'quick flick finishes cropping and fades the shade through release',
+    (tester) async {
+      const player = Rect.fromLTWH(0, 20, 500, 282);
+      final harness = await openPlayer(tester, preview: player);
+      final swipe = harness.swipe.currentState!;
+      final shade = find.byKey(const ValueKey('player-swipe-scrim'));
+      swipe.begin();
+      swipe.update(30);
+      await tester.pump();
+      final before = tester.widget<ColoredBox>(shade).color.a;
+      final release = swipe.end(1200);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 60));
+      expect(harness.route.isCurrent, isFalse);
+      expect(
+        tester.widget<ColoredBox>(shade).color.a,
+        inExclusiveRange(0, before),
+      );
+      await tester.pumpAndSettle();
+      await release;
+      expect(shade, findsNothing);
+      expect(find.text('home'), findsOneWidget);
     },
   );
 
